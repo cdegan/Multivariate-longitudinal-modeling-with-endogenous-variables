@@ -1,4 +1,4 @@
-# Multivariate longitudinal modeling with continuous time-varying endogenous covariates
+# Multivariate longitudinal modeling with continuous time-varying endogenous covariates - Code
 Here one can find the R-code used within the context of the paper '*Multivariate longitudinal modeling with continuous time-varying endogenous covariates*'.
 
 The folders are the following:
