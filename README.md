@@ -2,7 +2,7 @@
 Here one can find the R-code used within the context of the paper '*Multivariate longitudinal modeling with continuous time-varying endogenous covariates*'.
 
 The folders are the following:
-- **Simulation 65 vs 200** contains all the files used for the simulation shown in Section 5 of the paper. It contains:
+- **Simulation 65 vs 200** contains all the files that are needed to compile the simulation that compare the models estimation when assuming small or big sample size. This simulation is shown in Section 5 of the paper. The folder contains:
      -   *Data* folder
      -   *Data_parameters.R* file containing all the fixed parameters used for the simulation (R file);
      -   *Data_creation.R* file containing the functions used to create the datasets for the simulation (R file);
