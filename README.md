@@ -3,7 +3,7 @@ Here one can find the R-code used within the context of the paper '*Multivariate
 
 The folders are the following:
 - **Simulation 65 vs 200** contains all the files that are needed to compile the simulation that compare the models estimation when assuming small or big sample size. This simulation is shown in Section 5 of the paper. The folder contains:
-     -   *Data* folder
+     -   *Simulated models* folder cointaining the files with the saved simulated estimated models, distringuish between JMM and JSM, and between 65 and 200 patients (*models_JMM_beta_65.RData*, *models_JMM_beta_200.RData*, *models_JSM_beta_65.RData*, *models_JSM_beta_65.RData*) (RData). The simulated data files are not available here due to their large size. If needed, you can request them by emailing c.degan@lumc.nl
      -   *Data_parameters.R* file containing all the fixed parameters used for the simulation (R file);
      -   *Data_creation.R* file containing the functions used to create the datasets for the simulation (R file);
      -   *models_preparation.R* file containing the functions used to prepare estimation of JMM and JSM (R file);
