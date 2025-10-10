@@ -2,12 +2,12 @@
 Here one can find the R-code used within the context of the paper '*Multivariate longitudinal modeling with continuous time-varying endogenous covariates*'.
 
 In the main folder we included all the codings files used for the simulations (and can also be used to reproduce the analysis in real data):
-     -   *Data_parameters.R* file containing all the fixed parameters used for the simulation (R file);
-     -   *Data_creation.R* file containing the functions used to create the datasets for the simulation (R file);
-     -   *models_preparation.R* file containing the functions used to prepare estimation of JMM and JSM (R file);
-     -   *JMM.R* file containing the specific functions used to estimate the JMM (R file);
-     -   *JSM.R* file containing the specific functions used to estimate the JMM (R file);
-     -   *Ass_coeff_derivation.R* file containing the functions used to estimate the association coefficient in both JMM and JSM (R file);
+-   *Data_parameters.R* file containing all the fixed parameters used for the simulation (R file);
+-   *Data_creation.R* file containing the functions used to create the datasets for the simulation (R file);
+-   *models_preparation.R* file containing the functions used to prepare estimation of JMM and JSM (R file);
+-   *JMM.R* file containing the specific functions used to estimate the JMM (R file);
+-   *JSM.R* file containing the specific functions used to estimate the JMM (R file);
+-   *Ass_coeff_derivation.R* file containing the functions used to estimate the association coefficient in both JMM and JSM (R file);
 
 
 The other folders contain the following:
