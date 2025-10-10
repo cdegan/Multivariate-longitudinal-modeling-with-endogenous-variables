@@ -1,0 +1,451 @@
+---
+title: "Simulation default vs informative hyperprior"
+output: html_document
+date: "2025-10-07"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r libraries, include=FALSE}
+rm(list=ls())
+
+library(parallel)
+cores <- system("nproc", intern=TRUE)
+
+library(dplyr)
+library(plyr)
+library(tidyr)
+library(MASS)
+library(Rlab)
+library(progress)
+library(INLA)
+library(brinla)
+library(GLMMadaptive)
+library(ggpubr)
+library(ggplot2)
+
+source("Data_parameters.R")
+source("Data_creation.R")
+source("models_preparation.R")
+source("JMM.R")
+source("JSM.R")
+source("Ass_coeff_derivation.R")
+```
+
+```{r creation of the datasets}
+# data_beta_65 <- single.data(65, M)
+# save(data_beta_65, file = "data_beta_65.RData")
+# data_beta_200 <- single.data(200, M)
+# save(data_beta_200, file = "data_beta_200.RData")
+
+load("data_beta_65.RData")    # M datasets with 65 patients
+load("data_beta_200.RData")   # M datasets with 200 patients
+
+# checking the creation of the data
+ggplot(data = data_beta_200[[2]][[85]], aes(x = t, y = y, group = id)) +
+  geom_line() +
+  labs(title = "Time trend of y")
+
+ggplot(data = data_beta_200[[2]][[85]], aes(x = t, y = x, group = id)) +
+  geom_line() +
+  labs(title = "Time trend of x")
+```
+
+### Simulation of the JMM
+
+```{r simulations on JMM dataset}
+fam <- c("gaussian", "beta")
+link_function <- function(x) plogis(x)
+
+# models_JMM_beta_65 <- list("JMM" = list())
+# models_JMM_beta_200 <- list("JMM" = list())
+# estimation_models(models_JMM_beta_65, data_beta_65, M, FALSE, "JMM")
+# estimation_models(models_JMM_beta_200, data_beta_200, M, FALSE, "JMM")
+
+models_JMM_beta_65 <- get(load("models_JMM_beta_65.RData"))     # M JMM models with 65 patients with informative hyperprior
+models_JMM_beta_200 <- get(load("models_JMM_beta_200.RData"))   # M JMM models with 200 patients with informative hyperprior
+
+# models_JMM_beta_65default <- list("JMM" = list())
+# models_JMM_beta_200default <- list("JMM" = list())
+# estimation_models(models_JMM_beta_65default, data_beta_65, M, TRUE, "JMM")
+# estimation_models(models_JMM_beta_200default, data_beta_200, M, TRUE, "JMM")
+
+models_JMM_beta_65default <- get(load("models_JMM_beta_65default.RData"))     # M JMM models with 65 patients with default hyperprior
+models_JMM_beta_200default <- get(load("models_JMM_beta_200default.RData"))   # M JMM models with 200 patients with default hyperprior
+```
+
+```{r comparison fixed effects 65}
+mode_jmm <- data.frame("mode" = c(unlist(lapply(models_JMM_beta_65$JMM, 
+                                              function(x) if(sum(is.na(x$fix_eff)) == 1) {rep(NA, 4)} else {x$fix_eff})), 
+                                  unlist(lapply(models_JMM_beta_65default$JMM, 
+                                              function(x) if(sum(is.na(x$fix_eff)) == 1) {rep(NA, 4)} else {x$fix_eff}))),
+                       "var" = c("Intercept_x", "time_x", "Intercept_y", "time_y"), 
+                       "real" = true_betas, 
+                       "model" = rep(1:M, each = 4), 
+                       "Mode_type" = as.factor(rep(1:2, each = 4*M)))
+
+plot_hist_fix_jmm65 <- ggplot(mode_jmm, aes(x = mode, fill = Mode_type)) +
+    geom_histogram(alpha = 0.7, bins = 50, position = "identity") +
+    scale_fill_manual(values = c("#FDB462", "#D95F0E"), labels = c("Informative", "Default")) + 
+    geom_vline(aes(xintercept = real), linetype = "dashed", color = "black") +
+    facet_wrap(~ var, scales = "free", ncol = 2) +
+    labs(title = "Histogram of Mode Values - fixed effects", x = "Mode", y = "Frequency", fill = "Hyperprior") +
+    theme_light()
+
+plot_hist_fix_jmm65
+```
+```{r comparison hyperparameters 65}
+var_names <- c("Precision of the Gaussian observations",
+                   "Precision of the beta observations", 
+                   "Precision of random intercepts of v", 
+                   "Precision of random intercepts of y", 
+                   "Precision of random slopes of v", 
+                   "Precision of random slopes of y", 
+                   "Correlation random intercepts",
+                   "Correlation random effects of v",
+                   "Correlation random intercept of v\nand random slope of y", 
+                   "Correlation random intercept of y\nand random slope of v", 
+                   "Correlation random effects of y", 
+                   "Correlation random slopes")
+  
+real_values <- c(1/(sd_x)^2, precision, 1/D_x[1,1], 1/D_y[1,1], 1/D_x[2,2], 1/D_y[2,2], 
+                          D[1,3]/(sqrt(D[1,1]*D[3,3])), D[1,2]/(sqrt(D[1,1]*D[2,2])), D[1,4]/(sqrt(D[1,1]*D[4,4])),
+                          D[2,3]/(sqrt(D[2,2]*D[3,3])), D[3,4]/(sqrt(D[3,3]*D[4,4])), D[2,4]/(sqrt(D[4,4]*D[2,2])))
+  
+hyper_jmm_old <- data.frame(
+    "mode" = c(unlist(lapply(models_JMM_beta_65$JMM, 
+                           function(x) if(sum(is.na(x$precisions)) == 1) {
+                             rep(NA, nrow(models_JMM_beta_65$JMM[[1]]$precisions))
+                             } else {x$precisions[, "mode"]})),
+               unlist(lapply(models_JMM_beta_65default$JMM, 
+                           function(x) if(sum(is.na(x$sds)) == 1) {
+                             rep(NA, nrow(models_JMM_beta_65default$JMM[[1]]$precisions))
+                             } else {x$precisions[, "mode"]}))),
+    "var" = var_names,
+    "model" = rep(1:M, each = nrow(models_JMM_beta_65$JMM[[1]]$precisions)), 
+    "real" = real_values, 
+    "source" = as.factor(rep(1:2, each = nrow(models_JMM_beta_65$JMM[[1]]$precisions)*M)))
+
+param_jmm_prior <- ggplot(hyper_jmm_old, aes(x = mode, fill = source)) +
+    geom_histogram(alpha = 0.7, position = "identity") +
+    scale_fill_manual(values = c("#FDB462", "#D95F0E"), labels = c("Informative", "Default")) + 
+    geom_vline(aes(xintercept = real), linetype = "dashed", color = "black") +
+    facet_wrap(~ var, scales = "free", ncol = 2) +
+    labs(x = "Mode", y = "Frequency", fill = "Hyperprior") +
+    theme_light() +
+    theme(legend.position = "bottom", 
+          strip.text = element_text(face = "bold", size = 12, color = "black"))
+
+param_jmm_prior
+
+ggsave("param_jmm_prior.jpg", plot = param_jmm_prior, width = 10, height = 10)
+```
+
+```{r comparison hyperparameters 200}
+var_names <- c("Precision of the Gaussian observations",
+                   "Precision of the beta observations", 
+                   "Precision of random intercepts of v", 
+                   "Precision of random intercepts of y", 
+                   "Precision of random slopes of v", 
+                   "Precision of random slopes of y", 
+                   "Correlation random intercepts",
+                   "Correlation random effects of v",
+                   "Correlation random intercept of v\nand random slope of y", 
+                   "Correlation random intercept of y\nand random slope of v", 
+                   "Correlation random effects of y", 
+                   "Correlation random slopes")
+  
+real_values <- c(1/(sd_x)^2, precision, 1/D_x[1,1], 1/D_y[1,1], 1/D_x[2,2], 1/D_y[2,2], 
+                          D[1,3]/(sqrt(D[1,1]*D[3,3])), D[1,2]/(sqrt(D[1,1]*D[2,2])), D[1,4]/(sqrt(D[1,1]*D[4,4])),
+                          D[2,3]/(sqrt(D[2,2]*D[3,3])), D[3,4]/(sqrt(D[3,3]*D[4,4])), D[2,4]/(sqrt(D[4,4]*D[2,2])))
+  
+hyper_jmm_old <- data.frame(
+    "mode" = c(unlist(lapply(models_JMM_beta_200$JMM, 
+                           function(x) if(sum(is.na(x$precisions)) == 1) {
+                             rep(NA, nrow(models_JMM_beta_200$JMM[[1]]$precisions))
+                             } else {x$precisions[, "mode"]})),
+               unlist(lapply(models_JMM_beta_200default$JMM, 
+                           function(x) if(sum(is.na(x$sds)) == 1) {
+                             rep(NA, nrow(models_JMM_beta_200default$JMM[[1]]$precisions))
+                             } else {x$precisions[, "mode"]}))),
+    "var" = var_names,
+    "model" = rep(1:M, each = nrow(models_JMM_beta_200$JMM[[1]]$precisions)), 
+    "real" = real_values, 
+    "source" = as.factor(rep(1:2, each = nrow(models_JMM_beta_200$JMM[[1]]$precisions)*M)))
+
+param_jmm_prior200 <- ggplot(hyper_jmm_old, aes(x = mode, fill = source)) +
+    geom_histogram(alpha = 0.7, position = "identity") +
+    scale_fill_manual(values = c("#FDB462", "#D95F0E"), labels = c("Informative", "Default")) + 
+    geom_vline(aes(xintercept = real), linetype = "dashed", color = "black") +
+    facet_wrap(~ var, scales = "free", ncol = 2) +
+    labs(x = "Mode", y = "Frequency", fill = "Hyperprior") +
+    theme_light() +
+    theme(legend.position = "bottom", 
+          strip.text = element_text(face = "bold", size = 12, color = "black"))
+
+param_jmm_prior200
+
+ggsave("param_jmm_prior200.jpg", plot = param_jmm_prior200, width = 10, height = 10)
+```
+
+```{r only jmm, warning = FALSE}
+models_JMM_beta_200default[[1]][[660]]$coeff_jmm <- matrix(NA, nrow = 2, ncol = 20)
+# same number of patients, different hyperprior
+coeff_dataset <- data.frame(
+    mean = c(
+      rowMeans(sapply(models_JMM_beta_65[[1]], function(x) x$coeff_jmm[1, ]), na.rm = TRUE),
+      rowMeans(sapply(models_JMM_beta_65default[[1]], function(x) x$coeff_jmm[1, ]), na.rm = TRUE),
+      rowMeans(sapply(models_JMM_beta_200[[1]], function(x) x$coeff_jmm[1, ]), na.rm = TRUE),
+      rowMeans(sapply(models_JMM_beta_200default[[1]], function(x) x$coeff_jmm[1, ]), na.rm = TRUE),
+      coef_jmm
+    ),
+    quant1 = c(
+      apply(sapply(models_JMM_beta_65[[1]], function(x) x$coeff_jmm[1, ]), 1, quantile, prob = 0.05, na.rm = TRUE),
+      apply(sapply(models_JMM_beta_65default[[1]], function(x) x$coeff_jmm[1, ]), 1, quantile, prob = 0.05, na.rm = TRUE),
+      apply(sapply(models_JMM_beta_200[[1]], function(x) x$coeff_jmm[1, ]), 1, quantile, prob = 0.05, na.rm = TRUE),
+      apply(sapply(models_JMM_beta_200default[[1]], function(x) x$coeff_jmm[1, ]), 1, quantile, prob = 0.05, na.rm = TRUE),
+      rep(NA, length(time))
+    ),
+    quant2 = c(
+      apply(sapply(models_JMM_beta_65[[1]], function(x) x$coeff_jmm[1, ]), 1, quantile, prob = 0.95, na.rm = TRUE),
+      apply(sapply(models_JMM_beta_65default[[1]], function(x) x$coeff_jmm[1, ]), 1, quantile, prob = 0.95, na.rm = TRUE),
+      apply(sapply(models_JMM_beta_200[[1]], function(x) x$coeff_jmm[1, ]), 1, quantile, prob = 0.95, na.rm = TRUE),
+      apply(sapply(models_JMM_beta_200default[[1]], function(x) x$coeff_jmm[1, ]), 1, quantile, prob = 0.95, na.rm = TRUE),
+      rep(NA, length(time))
+    ),
+    models = as.factor(c(rep(1:2, each = length(time)), rep(1:2, each = length(time)), rep(3, length(time)))),
+    time = time,
+    pat = as.factor(c(rep(1:2, each = 2*length(time)), rep(3, length(time))))
+  )
+
+option2 <- ggplot(coeff_dataset, aes(x = time, y = mean, color = models, fill = models, linetype = pat)) +
+    geom_line(linewidth = 0.8) +
+    # geom_point(size = 2) +
+    # geom_ribbon(aes(ymin = quant1, ymax = quant2), alpha = 0.2, color = "NA") +
+    labs(x = "Time", 
+         y = "Association coefficient", 
+         title = "Joint Mixed Model (JMM)", 
+         color = "Priors", 
+         fill = "Priors", 
+         linetype = "Number of patients") +
+    scale_color_manual(values = c("1" = "#FDB462", "2" = "#D95F0E", "3" = "black"), 
+                       labels = c("Informative prior", "Default prior", "Real value")) +
+    scale_fill_manual(values = c("1" = "#FDB462", "2" = "#D95F0E", "3" = "black"), 
+                      labels = c("Informative prior", "Default prior", "Real value")) +
+  scale_linetype_manual(values = c("1" = "dashed", "2" = "solid", "3" = "dotted"),
+  labels = c("65", "200", "Real value")) +
+    theme_light() +  # Cleaner look
+    theme(legend.position = "right", 
+          legend.box = "vertical",  # Stack legends vertically
+        legend.text = element_text(size = 12),       # Increase legend text size
+        legend.title = element_text(size = 13),
+        axis.title.x = element_text(size = 13),
+        axis.text.x = element_text(size = 12),
+        axis.title.y = element_text(size = 13),
+        axis.text.y = element_text(size = 12)) +
+    scale_x_continuous(breaks = seq(min(coeff_dataset$time), max(coeff_dataset$time), by = 2))
+
+option2
+ggsave("prio_sim_jmm.jpg", plot = option2, width = 9, height = 5)
+```
+
+
+### Simulation of the JSM
+
+```{r simulations on JSM dataset}
+# models_JSM_beta_65 <- list("JSM" = list())
+# models_JSM_beta_200 <- list("JSM" = list())
+# estimation_models(models_JSM_beta_65, data_beta_65, M, FALSE, "JSM")
+# estimation_models(models_JSM_beta_200, data_beta_200, M, FALSE, "JSM")
+
+models_JSM_beta_65 <- get(load("models_JSM_beta_65.RData"))     # M JSM models with 65 patients with informative hyperprior
+models_JSM_beta_200 <- get(load("models_JSM_beta_200.RData"))   # M JSM models with 200 patients with informative hyperprior
+
+# models_JSM_beta_65default <- list("JSM" = list())
+# models_JSM_beta_200default <- list("JSM" = list())
+# estimation_models(models_JSM_beta_65default, data_beta_65, M, TRUE, "JSM")
+# estimation_models(models_JSM_beta_200default, data_beta_200, M, TRUE, "JSM")
+
+models_JSM_beta_65default <- get(load("models_JSM_beta_65default.RData"))     # M JSM models with 65 patients with default hyperprior
+models_JSM_beta_200default <- get(load("models_JSM_beta_200default.RData"))   # M JSM models with 200 patients with default hyperprior
+```
+
+```{r}
+mode_jsm <- data.frame("mode" = c(unlist(lapply(models_JSM_beta_65$JSM, 
+                                              function(x) if(sum(is.na(x$fix_eff)) == 1) {
+                                                rep(NA, 4)
+                                                } else {c(x$fix_eff[1:2], x$fix_eff[3:4] + x$gamma*x$fix_eff[1:2])})),
+                                  unlist(lapply(models_JSM_beta_65default$JSM, 
+                                              function(x) if(sum(is.na(x$fix_eff)) == 1) {
+                                                rep(NA, 4)
+                                                } else {c(x$fix_eff[1:2], x$fix_eff[3:4] + x$gamma*x$fix_eff[1:2])}))),
+                         "var" = c("Intercept_x", "time_x", "Intercept_y", "time_y"), 
+                         "real" = true_betas, 
+                         "model" = rep(1:M, each = 4), 
+                         "Mode_type" = as.factor(rep(1:2, each = 4*M)))
+  
+plot_hist_fix_jsm_65 <- ggplot(mode_jsm, aes(x = mode, fill = Mode_type)) +
+    geom_histogram(alpha = 0.7, bins = 50, position = "identity") +
+    scale_fill_manual(values = c("#80B1D3", "#08519c"), labels = c("Informative", "Default")) + 
+    geom_vline(aes(xintercept = real), linetype = "dashed", color = "black") +
+    facet_wrap(~ var, scales = "free", ncol = 2) +
+    labs(title = "Histogram of Mode Values - fixed effects", x = "Mode", y = "Frequency", fill = "Hyperprior") +
+    theme_light()
+  
+plot_hist_fix_jsm_65
+```
+
+```{r n = 65}
+name_jsm_value <- c("Precision of the Gaussian observations",
+                   "Precision of the beta observations", 
+                   "Precision for fixed intercept v", 
+                   "Precision for fixed time v",
+                   "Precision of random intercepts of v",
+                   "Precision of random slopes of v",
+                   "Correlation random effects v",
+                   "Precision of random intercepts of y", 
+                   "Precision of random slopes of y", 
+                   "Correlation random effects y", 
+                   "Gamma parameter")
+
+real_jsm_value <- c(1/(sd_x^2), precision, 0, 0, 1/D_x[1, 1], 1/D_x[2, 2], D_x[1, 2]/(sqrt(D_x[1, 1])*sqrt(D_x[2, 2])), 1/D_y[1, 1], 1/D_y[2, 2], 
+                    D_y[1, 2]/(sqrt(D_y[1, 1])*sqrt(D_y[2, 2])), gamma)
+
+hyper_jsm_old <- data.frame(
+  "mode" = c(unlist(lapply(models_JSM_beta_65$JSM, 
+                         function(x) if(sum(is.na(x$precisions)) == 1) {
+                           rep(NA, nrow(models_JSM_beta_65$JSM[[1]]$precisions))
+                           } else {x$precisions[, "mode"]})), 
+             unlist(lapply(models_JSM_beta_65default$JSM, 
+                         function(x) if(sum(is.na(x$precisions)) == 1) {
+                           rep(NA, nrow(models_JSM_beta_65default$JSM[[1]]$precisions))
+                           } else {x$precisions[, "mode"]}))), 
+  "var" = name_jsm_value,
+  "model" = rep(1:M, each = nrow(models_JSM_beta_65$JSM[[1]]$precisions)), 
+  "real" = real_jsm_value, 
+  "source" = as.factor(rep(1:2, each = nrow(models_JSM_beta_65$JSM[[1]]$precisions)*M)))
+
+param_jsm_prior <- ggplot(hyper_jsm_old %>%
+         filter(var != "Precision for fixed intercept v") %>% 
+         filter(var != "Precision for fixed time v"), 
+       aes(x = mode, fill = source)) +
+    geom_histogram(alpha = 0.7, position = "identity") +
+    scale_fill_manual(values = c("#80B1D3", "#08519c"), labels = c("Informative", "Default")) + 
+    geom_vline(aes(xintercept = real), linetype = "dashed", color = "black") +
+    facet_wrap(~ var, scales = "free", ncol = 2) +
+    labs(x = "Mode", y = "Frequency", fill = "Hyperprior") +
+    theme_light() +
+    theme(legend.position = "bottom", 
+          strip.text = element_text(face = "bold", size = 12, color = "black"))
+
+param_jsm_prior
+
+ggsave("param_jsm_prior.jpg", plot = param_jsm_prior, width = 10, height = 10)
+```
+
+```{r n = 200}
+name_jsm_value <- c("Precision of the Gaussian observations",
+                   "Precision of the beta observations", 
+                   "Precision for fixed intercept v", 
+                   "Precision for fixed time v",
+                   "Precision of random intercepts of v",
+                   "Precision of random slopes of v",
+                   "Correlation random effects v",
+                   "Precision of random intercepts of y", 
+                   "Precision of random slopes of y", 
+                   "Correlation random effects y", 
+                   "Gamma parameter")
+
+real_jsm_value <- c(1/(sd_x^2), precision, 0, 0, 1/D_x[1, 1], 1/D_x[2, 2], D_x[1, 2]/(sqrt(D_x[1, 1])*sqrt(D_x[2, 2])), 1/D_y[1, 1], 1/D_y[2, 2], 
+                    D_y[1, 2]/(sqrt(D_y[1, 1])*sqrt(D_y[2, 2])), gamma)
+
+hyper_jsm_old <- data.frame(
+  "mode" = c(unlist(lapply(models_JSM_beta_200$JSM, 
+                         function(x) if(sum(is.na(x$precisions)) == 1) {
+                           rep(NA, nrow(models_JSM_beta_200$JSM[[1]]$precisions))
+                           } else {x$precisions[, "mode"]})), 
+             unlist(lapply(models_JSM_beta_200default$JSM, 
+                         function(x) if(sum(is.na(x$precisions)) == 1) {
+                           rep(NA, nrow(models_JSM_beta_200default$JSM[[1]]$precisions))
+                           } else {x$precisions[, "mode"]}))), 
+  "var" = name_jsm_value,
+  "model" = rep(1:M, each = nrow(models_JSM_beta_200$JSM[[1]]$precisions)), 
+  "real" = real_jsm_value, 
+  "source" = as.factor(rep(1:2, each = nrow(models_JSM_beta_200$JSM[[1]]$precisions)*M)))
+
+param_jsm_prior <- ggplot(hyper_jsm_old %>%
+         filter(var != "Precision for fixed intercept v") %>% 
+         filter(var != "Precision for fixed time v"), 
+       aes(x = mode, fill = source)) +
+    geom_histogram(alpha = 0.7, position = "identity") +
+    scale_fill_manual(values = c("#80B1D3", "#08519c"), labels = c("Informative", "Default")) + 
+    geom_vline(aes(xintercept = real), linetype = "dashed", color = "black") +
+    facet_wrap(~ var, scales = "free", ncol = 2) +
+    labs(x = "Mode", y = "Frequency", fill = "Hyperprior") +
+    theme_light() +
+    theme(legend.position = "bottom", 
+          strip.text = element_text(face = "bold", size = 12, color = "black"))
+
+param_jsm_prior
+
+ggsave("param_jsm_prior.jpg", plot = param_jsm_prior, width = 10, height = 10)
+```
+
+```{r only jsm, warning = FALSE, eval = FALSE}
+# same number of patients, different hyperprior
+coeff_dataset_jsm <- data.frame(
+    mean = c(
+      rowMeans(sapply(models_JSM_beta_65[[1]], function(x) x$coeff_jsm[1, ]), na.rm = TRUE),
+      rowMeans(sapply(models_JSM_beta_65default[[1]], function(x) x$coeff_jsm[1, ]), na.rm = TRUE),
+      rowMeans(sapply(models_JSM_beta_200[[1]], function(x) x$coeff_jsm[1, ]), na.rm = TRUE),
+      rowMeans(sapply(models_JSM_beta_200default[[1]], function(x) x$coeff_jsm[1, ]), na.rm = TRUE),
+      coef_jsm
+    ),
+    quant1 = c(
+      apply(sapply(models_JSM_beta_65[[1]], function(x) x$coeff_jsm[1, ]), 1, quantile, prob = 0.05, na.rm = TRUE),
+      apply(sapply(models_JSM_beta_65default[[1]], function(x) x$coeff_jsm[1, ]), 1, quantile, prob = 0.05, na.rm = TRUE),
+      apply(sapply(models_JSM_beta_200[[1]], function(x) x$coeff_jsm[1, ]), 1, quantile, prob = 0.05, na.rm = TRUE),
+      apply(sapply(models_JSM_beta_200default[[1]], function(x) x$coeff_jsm[1, ]), 1, quantile, prob = 0.05, na.rm = TRUE),
+      rep(NA, length(time))
+    ),
+    quant2 = c(
+      apply(sapply(models_JSM_beta_65[[1]], function(x) x$coeff_jsm[1, ]), 1, quantile, prob = 0.95, na.rm = TRUE),
+      apply(sapply(models_JSM_beta_65default[[1]], function(x) x$coeff_jsm[1, ]), 1, quantile, prob = 0.95, na.rm = TRUE),
+      apply(sapply(models_JSM_beta_200[[1]], function(x) x$coeff_jsm[1, ]), 1, quantile, prob = 0.95, na.rm = TRUE),
+      apply(sapply(models_JSM_beta_200default[[1]], function(x) x$coeff_jsm[1, ]), 1, quantile, prob = 0.95, na.rm = TRUE),
+      rep(NA, length(time))
+    ),
+    models = as.factor(c(rep(1:2, each = length(time)), rep(1:2, each = length(time)), rep(3, length(time)))),
+    time = time,
+    pat = as.factor(c(rep(1:2, each = 2*length(time)), rep(3, length(time))))
+  )
+
+option2_jsm <- ggplot(coeff_dataset_jsm, aes(x = time, y = mean, color = models, fill = models, linetype = pat)) +
+    geom_line(linewidth = 0.8) +
+    # geom_point(size = 2) +
+    # geom_ribbon(aes(ymin = quant1, ymax = quant2), alpha = 0.2, color = "NA") +
+    labs(x = "Time", y = "Association coefficient", title = "Joint Scaled Model (JSM)", color = "Priors", fill = "Priors", linetype = "Number of patients") +
+    scale_color_manual(values = c("1" = "#80B1D3", "2" = "#08519c", "3" = "black"), 
+                       labels = c("Informative prior", "Default prior", "Real value")) +
+    scale_fill_manual(values = c("1" = "#80B1D3", "2" = "#08519c" , "3" = "black"), 
+                      labels = c("Informative prior", "Default prior", "Real value")) +
+  scale_linetype_manual(values = c("1" = "dashed", "2" = "solid", "3" = "dotted"),
+  labels = c("65", "200", "Real value")
+) +
+    theme_light() +  # Cleaner look
+    theme(legend.position = "right", 
+          legend.box = "vertical",  # Stack legends vertically
+        legend.text = element_text(size = 12),       # Increase legend text size
+        legend.title = element_text(size = 13),
+        axis.title.x = element_text(size = 13),
+        axis.text.x = element_text(size = 12),
+        axis.title.y = element_text(size = 13),
+        axis.text.y = element_text(size = 12)) +
+    scale_x_continuous(breaks = seq(min(coeff_dataset$time), max(coeff_dataset$time), by = 2))
+
+option2_jsm
+
+ggsave("prio_sim_jsm.jpg", plot = option2_jsm, width = 9, height = 5)
+```
