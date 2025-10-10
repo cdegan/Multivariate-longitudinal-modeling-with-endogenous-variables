@@ -1,7 +1,7 @@
 # Multivariate longitudinal modeling with continuous time-varying endogenous covariates - Code
 Here one can find the R-code used within the context of the paper '*Multivariate longitudinal modeling with continuous time-varying endogenous covariates*'.
 
-In the main folder we included all the codings files used for the simulations (and can also be used to reproduce the analysis in real data):
+In the **R** folder we included all the codings files used for the simulations (and can also be used to reproduce the analysis in real data):
 -   *Data_parameters.R* file containing all the fixed parameters used for the simulation (R file);
 -   *Data_creation.R* file containing the functions used to create the datasets for the simulation (R file);
 -   *models_preparation.R* file containing the functions used to prepare estimation of JMM and JSM (R file);
