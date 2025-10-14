@@ -255,6 +255,7 @@ coeff_dataset_jmm <- data.frame(
     time = time,
     pat = as.factor(rep(c("65", "200", "Real value"), each = length(time))))
 
+coeff_dataset_jmm <- coeff_dataset_jmm %>% filter(time > 5)
 plot_jmm_sim <- ggplot(coeff_dataset_jmm, aes(x = time, y = mean)) +
     geom_line(data = subset(coeff_dataset_jmm, pat != "Real value"), aes(color = pat), linewidth = 0.8) +
     geom_line(data = subset(coeff_dataset_jmm, pat == "Real value"), 
@@ -490,6 +491,7 @@ coeff_dataset_jsm <- data.frame(
     time = time,
     pat = as.factor(rep(c("65", "200", "Real value"), each = length(time))))
 
+coeff_dataset_jsm <- coeff_dataset_jsm %>% filter(time > 5)
 plot_jsm_sim <- ggplot(coeff_dataset_jsm, aes(x = time, y = mean)) +
     geom_line(data = subset(coeff_dataset_jsm, pat != "Real value"), aes(color = pat), linewidth = 0.8) +
     geom_line(data = subset(coeff_dataset_jsm, pat == "Real value"), 
