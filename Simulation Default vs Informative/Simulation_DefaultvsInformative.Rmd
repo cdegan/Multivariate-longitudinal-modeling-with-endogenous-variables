@@ -220,6 +220,7 @@ coeff_dataset <- data.frame(
     pat = as.factor(c(rep(1:2, each = 2*length(time)), rep(3, length(time))))
   )
 
+coeff_dataset <- coeff_dataset %>% filter(time >= 5)
 option2 <- ggplot(coeff_dataset, aes(x = time, y = mean, color = models, fill = models, linetype = pat)) +
     geom_line(linewidth = 0.8) +
     # geom_point(size = 2) +
@@ -422,6 +423,7 @@ coeff_dataset_jsm <- data.frame(
     pat = as.factor(c(rep(1:2, each = 2*length(time)), rep(3, length(time))))
   )
 
+coeff_dataset_jsm <- coeff_dataset_jsm %>% filter(time >= 5)
 option2_jsm <- ggplot(coeff_dataset_jsm, aes(x = time, y = mean, color = models, fill = models, linetype = pat)) +
     geom_line(linewidth = 0.8) +
     # geom_point(size = 2) +
