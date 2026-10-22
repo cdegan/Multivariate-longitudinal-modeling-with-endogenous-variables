@@ -157,7 +157,7 @@ jsm <- function(data, N, time, sd_x, sd_y, family, cores, a, link){
 # cores: number of cores available (number)
 # time: time points in which I estimate the coefficient (number/vector)
 
-jsm_new <- function(data, x, y, id, t, family, sd_x, sd_y, a, cores, time){
+jsm_new <- function(data, x, y, id, t, family, sd_x, sd_y, a, cores, time, link){
   failed <<- 0
   data.y <- data %>% dplyr::filter(!is.na(y))
   data.x <- data %>% dplyr::filter(!is.na(x))
