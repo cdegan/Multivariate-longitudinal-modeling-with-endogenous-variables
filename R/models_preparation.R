@@ -16,8 +16,8 @@ lmm_start <- function(data, N, family){
                   control.predictor = list(compute=TRUE, link = rep(1, nrow(data %>% filter(!is.na(x))))))
   
   model_y <- inla(y ~ t + f(id, model = "iid2d", n=2*N) + f(time_random, t, copy = "id"), 
-                  data = data %>% filter(!is.na(x)), family = family[2], 
-                  control.predictor = list(compute=TRUE, link = rep(1, nrow(data %>% filter(!is.na(x))))))
+                  data = data %>% filter(!is.na(y)), family = family[2], 
+                  control.predictor = list(compute=TRUE, link = rep(1, nrow(data %>% filter(!is.na(y))))))
   
   require(brinla)
   sd_x <- bri.hyperpar.summary(model_x)[2:3, 1]
