@@ -147,8 +147,8 @@ jsm <- function(data, N, time, sd_x, sd_y, family, cores, a, link){
 
 # INPUT:
 # data: dataset (data.frame)
-# x: name of the endogenous variable in the dataset (character)
-# y: name of the response variable in the dataset (character)
+# x: endogenous variable in the dataset (vector)
+# y: response variable in the dataset (vector)
 # id: name of the variable with subject-specific id in the dataset (character)
 # t: name of the time variable in the dataset (character)
 # family: distribution (e.g., gaussian, beta, gamma, etc.) of the [1] endogenous variable, [2] response variable (vector)
