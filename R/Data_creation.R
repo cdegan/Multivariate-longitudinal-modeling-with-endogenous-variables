@@ -120,7 +120,7 @@ create_data_jsm <- function(data, N, true_betas, D_x, D_y, gamma, sd_x, precisio
 }
 
 # OUTPUT:
-# data: completed dataset created based on JMM 
+# data: completed dataset created based on JSM 
 
 
 
