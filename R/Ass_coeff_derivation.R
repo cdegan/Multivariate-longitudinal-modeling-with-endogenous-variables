@@ -93,7 +93,7 @@ marginal_jmm <- function(model, fix_eff, R, n, a, t, cores, link_function){
 }
 
 # OUTPUT:
-# table with first row the association coefficient estimations at each time point, and second row the variances
+# list with first element the association coefficient estimations, and second element the variance
 
 
 
@@ -182,7 +182,7 @@ marginal_jsm_old <- function(model, fix_eff, R, n, a, t, cores, gamma, link_func
 }
 
 # OUTPUT:
-# table with first row the association coefficient estimations at each time point, and second row the variances
+# list with first element the association coefficient estimations, and second element the variance
 
 
 #------------------- DERIVATION OF THE ASSOCIATION COEFFICIENT IN JSM (second formulation) WITH THE CLOSED FORMULA (NORMAL CASE) ------------------- 
@@ -270,4 +270,4 @@ marginal_jsm_new <- function(model, fix_eff, R, n, a, t, cores, gamma, link_func
 }
 
 # OUTPUT:
-# table with first row the association coefficient estimations at each time point, and second row the variances
+# list with first element the association coefficient estimations, and second element the variance
